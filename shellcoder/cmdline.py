@@ -5,6 +5,8 @@
 Authors: logic4nil(logic4nil@gmail.com)
 Date:    2024/05/20 15:22:39
 """
+import os
+import sys
 
 import argparse
 
@@ -14,7 +16,9 @@ from shellcoder.generate import CodeGenerator
 def main(args=None):
     """主程序入口"""
 
-    parser = argparse.ArgumentParser(description='Generate shell script from YAML config.')
+    module_name = os.path.splitext(os.path.basename(os.path.dirname(sys.modules['__main__'].__file__)))[0]
+
+    parser = argparse.ArgumentParser(description='Generate shell script from YAML config.', prog=module_name)
     parser.add_argument('yaml_files', nargs='+', type=str, help='Paths to the YAML config files')
     parser.add_argument('output_file', type=str, help='Path to the output shell script file')
 

@@ -4,15 +4,16 @@ Codeshell
 
 快速开始
 ---
-如何构建、安装、运行
+安装
+```
+python setup.py install
+```
 
-测试
----
-如何执行自动化测试
+如何使用[demo.yaml][./demo.yaml]
+```
+python -m shellcoder demo.yaml demo.sh
 
-如何贡献
----
-贡献patch流程及质量要求
+```
 
 版本信息
 ---
