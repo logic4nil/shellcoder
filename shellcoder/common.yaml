@@ -1,0 +1,31 @@
+env:
+  YESTERDAY: "$(date -d \"-1 day $CUR_DATE\" +%Y%m%d)"
+  CUR_DIR: "$(cd $(dirname $0);pwd)"
+  LOGFILE: "$CUR_DIR/logs"
+
+functions:
+  init: |
+    env_init
+    mkdir -p $LOGFILE
+
+  send_notification: |
+    # Send Notification
+    local to="$1"
+    local subject="$2"
+    local body="$3"
+    echo -e "Subject: $subject\n\n$body" | sendmail "$to"
+
+  retry: |
+    local retries=$1
+    shift
+    local count=0
+    while [ $count -lt $retries ]; do
+      "$@"
+      if [ $? -eq 0 ]; then
+        return 0
+      fi
+      count=$((count + 1))
+      echo "Retry #$count/$retries failed. Retrying..."
+    done
+    return 1
+
