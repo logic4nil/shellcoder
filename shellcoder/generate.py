@@ -70,11 +70,11 @@ function env_init() {{
 
         # Create wrapper functions with retry and notification logic
         for task in self._tasks:
-            # local notify_tos={",".join("notify")}
+            notify_tos={",".join("notify")}
             notify_msg = ",".join([f'Task {task["name"]} failed"', f'"Task {task["name"]} failed after {retries} attempts.'])
             script_lines.append(f"""
 {task['name']}_wrapper() {{
-  local notify_tos="${notify_tos}"
+  local notify_tos="{notify_tos}"
   local notify_msg="{notify_msg}"
   echo "Starting task: {task['name']}"
   retry {task.get('retries', 1)} {task['name']}
