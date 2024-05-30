@@ -17,7 +17,7 @@ class CodeGenerator(object):
         for key, value in self._envs.items():
             env_script_lines.append(f"""
   if [ "${{{key}}}x" = "x" ]; then
-      export {key}={value}
+      export {key}="{value}"
   fi
 """)
         str_env_script = "".join(env_script_lines)
@@ -70,14 +70,17 @@ function env_init() {{
 
         # Create wrapper functions with retry and notification logic
         for task in self._tasks:
-            notify_cmd = " ".join([f'send_notification "{email}" "Task {task["name"]} failed" "Task {task["name"]} failed after {retries} attempts."' for email in notify])
+            # local notify_tos={",".join("notify")}
+            notify_msg = ",".join([f'Task {task["name"]} failed"', f'"Task {task["name"]} failed after {retries} attempts.'])
             script_lines.append(f"""
 {task['name']}_wrapper() {{
+  local notify_tos="${notify_tos}"
+  local notify_msg="{notify_msg}"
   echo "Starting task: {task['name']}"
   retry {task.get('retries', 1)} {task['name']}
   result=$?
   if [ $result -ne 0 ]; then
-    {notify_cmd}
+    send_notification 
     echo "Finished task: {task['name']}, Error"
     exit 1
   else
