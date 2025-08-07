@@ -76,10 +76,9 @@ function env_init() {{
             notify_msg = f'Task {task["name"]} failed after {retries} attempts.'
             timeout_info = ""
             if task.get("timeout"):
-                timeout_info = "export -f " + task['name'] + " && timeout " + task.get("timeout") + " bash -c "
+                timeout_info = "export -f " + task['name'] + " && timeout " + str(task.get("timeout")) + " bash -c "
             script_lines.append(f"""
 {task['name']}_wrapper() {{
-  local notify_tos="{notify_tos}"
   local notify_msg="{notify_msg}"
   echo "========= Starting task: {task['name']} ========="
   retry {task.get('retries', 1)} {timeout_info} {task['name']}
@@ -101,9 +100,11 @@ function env_init() {{
         # depends
         task_depends_on = {}
         task_depends_by = {}
+        task_disable_status = {}
         for task in self._tasks:
             dependencies = task.get('depends_on', [])
             task_depends_on[task['name']] = dependencies
+            task_disable_status[task['name']] = task.get("disable", False)
             for dependency in dependencies:
                 if dependency not in task_depends_on:
                     task_depends_on[dependency] = []

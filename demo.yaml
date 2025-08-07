@@ -30,6 +30,9 @@ functions:
     return 1
 
 tasks:
+  - name: task_3
+    script: |
+      echo "task 2"
   - name: task_2
     depends_on:
       - task_1
