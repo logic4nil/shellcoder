@@ -36,6 +36,8 @@ tasks:
     script: |
       echo "task 2"
   - name: task_1
+    timeout: 1
     script: |
       echo "task 1"
+      sleep 10
 

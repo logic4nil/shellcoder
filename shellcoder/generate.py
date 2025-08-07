@@ -7,10 +7,11 @@ Date:    2024/05/20 15:22:39
 """
 
 class CodeGenerator(object):
-    def __init__(self, envs={}, functions={}, tasks=[]):
+    def __init__(self, envs={}, functions={}, tasks=[], task_exec_bg=False):
         self._envs = envs
         self._functions = functions
         self._tasks = tasks
+        self.task_exec_bg = task_exec_bg
 
     def _generate_envs_shell_script(self):
         env_script_lines = []
@@ -39,6 +40,7 @@ function env_init() {{
         script_lines = []
         # Add task functions
         for task in self._tasks:
+            disable = task.get('disable', False)
             retries = task.get('retries', 1)
             notify = task.get('notify', [])
             debug = task.get('debug', False)
@@ -70,21 +72,24 @@ function env_init() {{
 
         # Create wrapper functions with retry and notification logic
         for task in self._tasks:
-            notify_tos={",".join("notify")}
-            notify_msg = ",".join([f'Task {task["name"]} failed"', f'"Task {task["name"]} failed after {retries} attempts.'])
+            retries = task.get('retries', 1)
+            notify_msg = f'Task {task["name"]} failed after {retries} attempts.'
+            timeout_info = ""
+            if task.get("timeout"):
+                timeout_info = "export -f " + task['name'] + " && timeout " + task.get("timeout") + " bash -c "
             script_lines.append(f"""
 {task['name']}_wrapper() {{
   local notify_tos="{notify_tos}"
   local notify_msg="{notify_msg}"
-  echo "Starting task: {task['name']}"
-  retry {task.get('retries', 1)} {task['name']}
+  echo "========= Starting task: {task['name']} ========="
+  retry {task.get('retries', 1)} {timeout_info} {task['name']}
   result=$?
   if [ $result -ne 0 ]; then
     send_notification 
     echo "Finished task: {task['name']}, Error"
     exit 1
   else
-    echo "Finished task: {task['name']}"
+    echo "========= Finished task: {task['name']} ========="
   fi
   return $result
 }} \n""")
@@ -107,20 +112,47 @@ function env_init() {{
                     task_depends_by[dependency] = []
                 task_depends_by[dependency].append(task['name'])
 
-        while len(task_depends_on) > 0:
-            for task_name in list(task_depends_on.keys()):
-                dependencies = task_depends_on[task_name]
-                if len(dependencies) == 0:
-                    script_lines.append(f"{task_name}_wrapper || exit 1\n")
+        
+        if self.task_exec_bg:
+            while len(task_depends_on) > 0:
+                # 计算无依赖tasks
+                no_deps_task_list = [task_name for task_name, task_deps in task_depends_on.items() if len(task_deps) == 0]
 
+                if len(no_deps_task_list) == 0:
+                    raise Exception('Error: All task has deps')
+                elif len(no_deps_task_list) == 1:
+                    task_name = no_deps_task_list[0]
+                    if not task_disable_status[task_name]:
+                        script_lines.append(f"{task_name}_wrapper || exit 1\n")
+                else:
+                    for task_name in no_deps_task_list:
+                        if not task_disable_status[task_name]:
+                            script_lines.append(f"{task_name}_wrapper &\n")
+                    script_lines.append("wait_bg_task_done\n")
+
+                # 移除已执行task
+                for task_name in no_deps_task_list:
                     del task_depends_on[task_name]
 
                     if task_name in task_depends_by:
                         for depend_by in task_depends_by[task_name]:
                             task_depends_on[depend_by].remove(task_name)
+        else: 
+            while len(task_depends_on) > 0:
+                for task_name in list(task_depends_on.keys()):
+                    dependencies = task_depends_on[task_name]
+                    if len(dependencies) == 0:
+                        if not task_disable_status[task_name]:
+                            script_lines.append(f"{task_name}_wrapper || exit 1\n")
 
-        # Add wait for all background jobs to finish
-        script_lines.append("wait\n")
+                        del task_depends_on[task_name]
+
+                        if task_name in task_depends_by:
+                            for depend_by in task_depends_by[task_name]:
+                                task_depends_on[depend_by].remove(task_name)
+
+            # Add wait for all background jobs to finish
+            script_lines.append("wait\n")
 
         return script_lines
 

@@ -1,11 +1,11 @@
 env:
   CUR_DATE: "$(date +%Y%m%d)"
   YESTERDAY: "$(date -d \"-1 day $CUR_DATE\" +%Y%m%d)"
-  CUR_DIR: "$(cd $(dirname $0);pwd)"
   LOGFILE: "$CUR_DIR/logs"
 
 functions:
   init: |
+    export CUR_DIR=$(cd $(dirname $0);pwd)
     env_init
     mkdir -p $LOGFILE
 
@@ -29,4 +29,53 @@ functions:
       echo "Retry #$count/$retries failed. Retrying..."
     done
     return 1
+
+  remove_file_if_exists: |
+    local file="$1"
+
+    if [ "${file}x" != "x" -a -e $file ]; then
+      rm -rf $file && echo "Remove ${file} success"
+    fi
+
+  remove_file_if_empty: |
+    local file="$1"
+
+    if [ -e "$file" ] && [ ! -s "$file" ]; then
+      rm -rf $file && echo "Remove ${file} success"
+    fi
+
+  wait_local_data_ready: |
+    local_file=$1
+    #  default 1 hour timeout
+    max_timeout=${2:-3600} 
+    start_time=$(date +%s)
+    while true; do
+        if [ -e $local_file ]; then
+            file_mod_time=$(stat -c %Y "$local_file")
+            current_time=$(date +%s)
+            time_diff=$((current_time - file_mod_time))
+            if [ $time_diff -gt 60 ]; then
+                echo "${local_file} exist"
+                break
+            fi
+        fi
+        current_time=$(date +%s)
+        if [ $((current_time - start_time)) -gt $max_timeout ]; then
+            echo "${local_file} waited for $max_timeout seconds. Return 1 due to timeout."
+            return 1
+        fi
+        wait_time=`expr ${RANDOM} % 30 + 30`
+        echo "waiting ${wait_time} seconds to wait for ${local_file} preparation"
+        sleep $wait_time
+    done
+
+  wait_bg_task_done: |
+    start_time=$(date +%s)
+    while [ -n "$(jobs -p)" ]; do
+      sleep 5
+      current_time=$(date +%s)
+      time_diff=$((current_time-start_time))
+      echo "$(date '+%Y-%m-%d %H:%M:%S') - all backend ground task elapsed time: $time_diff seconds and status: " >> ${LOGFILE}/bg_task_status_${CUR_DATE}.log
+      jobs -l >> ${LOGFILE}/bg_task_status_${CUR_DATE}.log
+    done
 
